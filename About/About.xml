@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>EndlessGrowth</name>
+  <author>Slime-Senpai</author>
+  <packageId>SlimeSenpai.EndlessGrowth</packageId>
+  <url>https://github.com/Slime-Senpai/EndlessGrowth</url>
+  <supportedVersions>
+    <li>1.4</li>
+  </supportedVersions>
+  <description>This mod removes the skill cap of 20, making it possible to scale way higher.
+Although there is no theoretical limit, my lazyness made me make everything scale up to 100.
+Level 100 requires 650K XP to reach from level 99 so it should be fine to assume no one will ever reach it.
+  </description>
+</ModMetaData>
