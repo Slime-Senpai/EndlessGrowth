@@ -3,7 +3,7 @@
 # EndlessGrowth for Rimworld !
 [![License: MIT][license]][MIT]
 
-This mod adds an automatic vent to your game to suit your temperature control needs.
+This mod lets your colonist scales higher than level 20, making them grow endlessly.
 
 Steam Workshop Page : https://steamcommunity.com/sharedfiles/filedetails/?id=2894401734
 
