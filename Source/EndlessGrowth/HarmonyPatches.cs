@@ -96,6 +96,16 @@ namespace SlimeSenpai.EndlessGrowth
                 new CodeMatch(OpCodes.Ldarg_0)
             };
 
+            var targetLevelIntPlusPlus = new CodeMatch[]
+            {
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(SkillRecord), nameof(SkillRecord.levelInt))),
+                new CodeMatch(OpCodes.Ldc_I4_1),
+                new CodeMatch(OpCodes.Add),
+                new CodeMatch(OpCodes.Stfld, AccessTools.Field(typeof(SkillRecord), nameof(SkillRecord.levelInt)))
+            };
+
             var targetSecondIf = new CodeMatch[]
             {
                 new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(SkillRecord), nameof(SkillRecord.levelInt))),
@@ -112,6 +122,20 @@ namespace SlimeSenpai.EndlessGrowth
             {
                 matcher.RemoveInstruction();
             }
+
+            // We find the part where the level is increased
+            matcher.MatchEndForward(targetLevelIntPlusPlus);
+
+            // We go after the Stfld
+            matcher.Advance(1);
+
+            // We add a call to CheckMaxLevel to make sure we always have the max level for the pawn
+            matcher.Insert(new CodeInstruction[]
+            {
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(SkillRecord), nameof(SkillRecord.levelInt))),
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CommonPatches), nameof(CommonPatches.CheckMaxLevel))),
+            });
 
             // We find the second if
             matcher.MatchEndForward(targetSecondIf);
@@ -146,8 +170,50 @@ namespace SlimeSenpai.EndlessGrowth
         }
     }
 
+    [HarmonyPatch(typeof(SkillRecord), nameof(SkillRecord.ExposeData))]
+    public static class SkillRecord_ExposeData_Patch
+    {
+        
+        public static void Postfix(SkillRecord __instance)
+        {
+            CommonPatches.CheckMaxLevel(__instance.GetLevel(true));
+        }
+    }
+
     public static class CommonPatches
     {
+        public static int maxPawnLevel = 0;
+
+        public static List<Bill> billLists = new();
+
+        public static void CheckMaxLevel(int level)
+        {
+            if (level > maxPawnLevel)
+            {
+                // Store the old max
+                var oldMax = GetMaxLevelForBill();
+
+                // Set new max
+                maxPawnLevel = level;
+
+                foreach(Bill bill in billLists)
+                {
+                    // If the pawn was using the old max
+                    if (bill.allowedSkillRange.max == oldMax)
+                    {
+                        // We make it use the new max
+                        bill.allowedSkillRange.max = GetMaxLevelForBill();
+                    }
+                }
+            }
+        }
+
+        public static int GetMaxLevelForBill()
+        {
+            // TODO Need a better range that (0, 100), maybe a setting
+            // We'll make the max level in bills either 100 or the max of pawn skill + 20
+            return Math.Max(100, maxPawnLevel + 20);
+        }
         public static IEnumerable<CodeInstruction> ReplaceClampForMax(IEnumerable<CodeInstruction> instructions)
         {
             var matcher = new CodeMatcher(instructions);
@@ -328,18 +394,25 @@ namespace SlimeSenpai.EndlessGrowth
     {
         public static void Postfix(Bill __instance)
         {
-            // TODO Need a better range that (0, 100), maybe a setting
-            __instance.allowedSkillRange = new(0, 100);
+            // Make the max skill range for the bill to 0, and a max level calculated from levels of pawns
+            __instance.allowedSkillRange = new(0, CommonPatches.GetMaxLevelForBill());
+
+            // We also store the bill for later usage
+            CommonPatches.billLists.Add(__instance);
         }
     }
 
     [HarmonyPatch(typeof(Bill), MethodType.Constructor, new Type[] { typeof(RecipeDef), typeof(Precept_ThingStyle) })]
     public static class Bill_ConstructorWithArguments_Patch
     {
+        // TODO Maybe merge the patch with the one above, never used a patch for two methods so meh
         public static void Postfix(Bill __instance)
         {
-            // TODO Need a better range that (0, 100), maybe a setting
-            __instance.allowedSkillRange = new(0, 100);
+            // Make the max skill range for the bill to 0, and a max level calculated from levels of pawns
+            __instance.allowedSkillRange = new(0, CommonPatches.GetMaxLevelForBill());
+
+            // We also store the bill for later usage
+            CommonPatches.billLists.Add(__instance);
         }
     }
 
@@ -359,9 +432,11 @@ namespace SlimeSenpai.EndlessGrowth
             // We find the number 20 that needs replacing (the only number 20 in the function)
             matcher.MatchStartForward(targetMaxRange);
 
-            // We replace it with 100 max
-            // TODO Need a better solution that 100 max, maybe a setting
-            matcher.SetInstruction(new CodeInstruction(OpCodes.Ldc_I4_S, (sbyte)100));
+            // We remove the instruction
+            matcher.RemoveInstruction();
+
+            // We replace it to a call to our custom field
+            matcher.Insert(new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CommonPatches), nameof(CommonPatches.GetMaxLevelForBill))));
 
             return matcher.InstructionEnumeration();
         }

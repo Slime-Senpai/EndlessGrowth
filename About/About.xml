@@ -16,10 +16,10 @@ Level 100 requires 650K XP to reach from level 99 so it should be fine to assume
 	</loadAfter>
   <modDependencies>
 	<li>
-	  <packageId>brrainz.harmony</packageId>
-	  <displayName>Harmony</displayName>
-	  <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
-	  <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
+    <packageId>brrainz.harmony</packageId>
+    <displayName>Harmony</displayName>
+    <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    <downloadUrl>https://github.com/pardeike/HarmonyRimWorld/releases/latest</downloadUrl>
 	</li>
 	</modDependencies>
 </ModMetaData>
