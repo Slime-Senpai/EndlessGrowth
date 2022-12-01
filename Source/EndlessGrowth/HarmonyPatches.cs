@@ -8,6 +8,17 @@ using UnityEngine;
 
 namespace SlimeSenpai.EndlessGrowth
 {
+    public static class RTMadSkills_Patch_SkillRecordInterval_Patch
+    {
+        public static void Postfix(int __0, ref float __result)
+        {
+            if (__0 > 20 && __result == 0)
+            {
+                __result = -12f;
+            }
+        }
+    }
+
     [HarmonyPatch(typeof(SkillRecord), nameof(SkillRecord.XpRequiredToLevelUpFrom))]
     public static class SkillRecord_XpRequiredToLevelUpFrom_Patch
     {
@@ -176,7 +187,8 @@ namespace SlimeSenpai.EndlessGrowth
         
         public static void Postfix(SkillRecord __instance)
         {
-            CommonPatches.CheckMaxLevel(__instance.GetLevel(true));
+            // Can't use Aptitude yet since it will break the cache, but the + 20 should make it work anyway
+            CommonPatches.CheckMaxLevel(__instance.levelInt);
         }
     }
 
@@ -250,7 +262,7 @@ namespace SlimeSenpai.EndlessGrowth
             return CommonPatches.ReplaceClampForMax(instructions);
         }
     }
-
+    
     [HarmonyPatch(typeof(SkillRecord), nameof(SkillRecord.GetLevel))]
     public static class SkillRecord_GetLevel_Patch
     {
@@ -266,6 +278,47 @@ namespace SlimeSenpai.EndlessGrowth
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
             return CommonPatches.ReplaceClampForMax(instructions);
+        }
+    }
+
+    [HarmonyPatch(typeof(SkillRecord), nameof(SkillRecord.Interval))]
+    public static class SkillRecord_Interval_Patch
+    {
+        public static void IntervalFix(SkillRecord instance, float mult)
+        {
+            if (instance.levelInt > 20)
+            {
+                instance.Learn(-12f * mult, false);
+            }
+        }
+
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var matcher = new CodeMatcher(instructions);
+
+            var targetSwitch = new CodeMatch[]
+            {
+                new CodeMatch(OpCodes.Switch)
+            };
+
+            // We find the switch case
+            matcher.MatchEndForward(targetSwitch);
+
+            // We advance by one to go after it (which is the default)
+            matcher.Advance(1);
+
+            // We insert a call to a new check function
+            matcher.Insert(new CodeInstruction[]
+            {
+                // Add the current object
+                new CodeInstruction(OpCodes.Ldarg_0),
+                // Add the num local variable
+                new CodeInstruction(OpCodes.Ldloc_0),
+                // Call the function with both
+                new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(SkillRecord_Interval_Patch), nameof(IntervalFix)))
+            });
+
+            return matcher.InstructionEnumeration();
         }
     }
 
