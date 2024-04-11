@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<LanguageData>
+
+  <EndlessGrowth_pleaseRestart>Please restart to apply modifications!</EndlessGrowth_pleaseRestart>
+  <EndlessGrowthModSettingsCategoryLabel>Endless Growth</EndlessGrowthModSettingsCategoryLabel>
+  <EndlessGrowth_maxLevelExplanation>Sets the max level. -1 for infinite.</EndlessGrowth_maxLevelExplanation>
+  <EndlessGrowth_unlimitedPriceExplanation>Set to true to allow the sell price to be above the buy price (and trust yourself not to abuse it).</EndlessGrowth_unlimitedPriceExplanation>
+  <EndlessGrowth_gapForMaxBillExplanation>The gap between your highest skill level and the max level possible in bills. Changing this will probably need you to redo the max on your existing bills.</EndlessGrowth_gapForMaxBillExplanation>
+  <EndlessGrowth_craftNotificationsEnabledExplanation>Are the Masterwork/Legendary craft notifications enabled?</EndlessGrowth_craftNotificationsEnabledExplanation>
+
+
+</LanguageData>

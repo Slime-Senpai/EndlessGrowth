@@ -19,6 +19,33 @@ namespace SlimeSenpai.EndlessGrowth
         }
     }
 
+    public static class VanillaTraitsExpanded_GenerateQualityCreatedByPawn_Patch_Patch
+    {
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var matcher = new CodeMatcher(instructions);
+
+            // We find where we don't allow legendaries
+            var target = new CodeMatch[]
+            {
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldc_I4_5),
+                new CodeMatch(OpCodes.Stind_I1)
+            };
+
+
+            matcher.MatchStartForward(target);
+
+            for (var i = 0; i < 3; i++)
+            {
+                // We replace with no operations to not have the quality stopped
+                matcher.SetOpcodeAndAdvance(OpCodes.Nop);
+            }
+
+            return matcher.InstructionEnumeration();
+        }
+    }
+
     [HarmonyPatch(typeof(SkillRecord), nameof(SkillRecord.XpRequiredToLevelUpFrom))]
     public static class SkillRecord_XpRequiredToLevelUpFrom_Patch
     {
@@ -125,40 +152,70 @@ namespace SlimeSenpai.EndlessGrowth
                 new CodeMatch(OpCodes.Ldarg_0)
             };
 
-            // We find the first if
-            matcher.MatchEndForward(targetFirstIF);
-
-            // This also will remove the second check of the if statement, but it's not a problem since we remove what's inside
-            while (matcher.Opcode != OpCodes.Br)
+            var targetSetToMax = new CodeMatch[]
             {
-                matcher.RemoveInstruction();
-            }
+                new CodeMatch(OpCodes.Ldc_I4_S, (sbyte)20)
+            };
 
-            // We find the part where the level is increased
-            matcher.MatchEndForward(targetLevelIntPlusPlus);
-
-            // We go after the Stfld
-            matcher.Advance(1);
-
-            // We add a call to CheckMaxLevel to make sure we always have the max level for the pawn
-            matcher.Insert(new CodeInstruction[]
+            if (EndlessGrowthMod.settings.maxLevel == -1)
             {
+                // We find the first if levelInt == 20 && xpSinceLastLevel > Required
+                matcher.MatchEndForward(targetFirstIF);
+
+                // This also will remove the second check of the if statement, but it's not a problem since we remove what's inside
+                while (matcher.Opcode != OpCodes.Br)
+                {
+                    matcher.RemoveInstruction();
+                }
+
+                // We find the part where the level is increased
+                matcher.MatchEndForward(targetLevelIntPlusPlus);
+
+                // We go after the Stfld
+                matcher.Advance(1);
+
+                // We add a call to CheckMaxLevel to make sure we always have the max level for the pawn
+                matcher.Insert(new CodeInstruction[]
+                {
                 new CodeMatch(OpCodes.Ldarg_0),
                 new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(SkillRecord), nameof(SkillRecord.levelInt))),
                 new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CommonPatches), nameof(CommonPatches.CheckMaxLevel))),
-            });
+                });
 
-            // We find the second if
-            matcher.MatchEndForward(targetSecondIf);
+                // We find the second if levelInt >= 20
+                matcher.MatchEndForward(targetSecondIf);
 
-            // As long as we don't jump, we're in the if so we remove the instructions
-            while (matcher.Opcode != OpCodes.Br_S)
-            {
+                // As long as we don't jump, we're in the if so we remove the instructions
+                while (matcher.Opcode != OpCodes.Br_S)
+                {
+                    matcher.RemoveInstruction();
+                }
+
+                // We don't want to jump too soon, so we also remove the Br_S
                 matcher.RemoveInstruction();
-            }
+            } else
+            {
+                // We find the first if levelInt == 20 && xpSinceLastLevel > Required
+                matcher.MatchStartForward(targetFirstIF);
 
-            // We don't want to jump too soon, so we also remove the Br_S
-            matcher.RemoveInstruction();
+                // We advance 1 to be on the 20
+                matcher.Advance(1);
+
+                // We set the max level to the new max
+                matcher.SetInstruction(new CodeInstruction(OpCodes.Ldc_I4, EndlessGrowthMod.settings.maxLevel));
+
+                // We find the second if levelInt >= 20
+                matcher.MatchStartForward(targetSecondIf);
+
+                // We go after the Ldfld
+                matcher.Advance(1);
+
+                matcher.SetInstruction(new CodeInstruction(OpCodes.Ldc_I4, EndlessGrowthMod.settings.maxLevel));
+
+                matcher.MatchStartForward(targetSetToMax);
+
+                matcher.SetInstruction(new CodeInstruction(OpCodes.Ldc_I4, EndlessGrowthMod.settings.maxLevel));
+            }
 
             return matcher.InstructionEnumeration();
         }
@@ -187,6 +244,12 @@ namespace SlimeSenpai.EndlessGrowth
         
         public static void Postfix(SkillRecord __instance)
         {
+            // We don't need to do this if the maxLevel is not infinite
+            if (EndlessGrowthMod.settings.maxLevel != -1)
+            {
+                return;
+            }
+
             // Can't use Aptitude yet since it will break the cache, but the + 20 should make it work anyway
             CommonPatches.CheckMaxLevel(__instance.levelInt);
         }
@@ -210,7 +273,7 @@ namespace SlimeSenpai.EndlessGrowth
 
                 foreach(Bill bill in billLists)
                 {
-                    // If the pawn was using the old max
+                    // If the bill was using the old max
                     if (bill.allowedSkillRange.max == oldMax)
                     {
                         // We make it use the new max
@@ -222,11 +285,14 @@ namespace SlimeSenpai.EndlessGrowth
 
         public static int GetMaxLevelForBill()
         {
-            // TODO Need a better range that (0, 100), maybe a setting
-            // We'll make the max level in bills either 100 or the max of pawn skill + 20
-            return Math.Max(100, maxPawnLevel + 20);
+            if(EndlessGrowthMod.settings.maxLevel != -1)
+            {
+                return Math.Max(20, EndlessGrowthMod.settings.maxLevel);
+            }
+            // We'll make the max level in bills either 100 or the max of pawn skill + gapForMaxBill (default 20)
+            return Math.Max(100, maxPawnLevel + EndlessGrowthMod.settings.gapForMaxBill);
         }
-        public static IEnumerable<CodeInstruction> ReplaceClampForMax(IEnumerable<CodeInstruction> instructions)
+        public static IEnumerable<CodeInstruction> FixClampOrMakeMax(IEnumerable<CodeInstruction> instructions)
         {
             var matcher = new CodeMatcher(instructions);
 
@@ -242,6 +308,14 @@ namespace SlimeSenpai.EndlessGrowth
 
             // We find the moment where the number 20 is added to the stack
             matcher.MatchStartForward(targetMaxLevel);
+
+            if (EndlessGrowthMod.settings.maxLevel != -1)
+            {
+                // We can just set the new max and stop there
+                matcher.SetInstruction(new CodeInstruction(OpCodes.Ldc_I4, EndlessGrowthMod.settings.maxLevel));
+
+                return matcher.InstructionEnumeration();
+            }
 
             // We remove the instruction
             matcher.RemoveInstruction();
@@ -259,7 +333,7 @@ namespace SlimeSenpai.EndlessGrowth
     {
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            return CommonPatches.ReplaceClampForMax(instructions);
+            return CommonPatches.FixClampOrMakeMax(instructions);
         }
     }
     
@@ -268,7 +342,7 @@ namespace SlimeSenpai.EndlessGrowth
     {
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            return CommonPatches.ReplaceClampForMax(instructions);
+            return CommonPatches.FixClampOrMakeMax(instructions);
         }
     }
 
@@ -277,7 +351,7 @@ namespace SlimeSenpai.EndlessGrowth
     {
         public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
         {
-            return CommonPatches.ReplaceClampForMax(instructions);
+            return CommonPatches.FixClampOrMakeMax(instructions);
         }
     }
 
@@ -442,6 +516,15 @@ namespace SlimeSenpai.EndlessGrowth
         }
     }
 
+    [HarmonyPatch(typeof(QualityUtility), nameof(QualityUtility.SendCraftNotification))]
+    public static class QualityUtility_SendCraftNotification_Patch
+    {
+        public static bool Prefix()
+        {
+            return EndlessGrowthMod.settings.craftNotificationsEnabled;
+        }
+    }
+
     [HarmonyPatch(typeof(Bill), MethodType.Constructor, new Type[] {})]
     public static class Bill_EmptyConstructor_Patch
     {
@@ -490,6 +573,34 @@ namespace SlimeSenpai.EndlessGrowth
 
             // We replace it to a call to our custom field
             matcher.Insert(new CodeInstruction(OpCodes.Call, AccessTools.Method(typeof(CommonPatches), nameof(CommonPatches.GetMaxLevelForBill))));
+
+            return matcher.InstructionEnumeration();
+        }
+    }
+
+    [HarmonyPatch(typeof(Tradeable), "InitPriceDataIfNeeded")]
+    public static class Tradeable_InitPriceDataIfNeeded_Patch
+    {
+        public static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+        {
+            var matcher = new CodeMatcher(instructions);
+
+            // We find the bit where the price is set to the buy price
+            var targetSetSellToBuy = new CodeMatch[]
+            {
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldarg_0),
+                new CodeMatch(OpCodes.Ldfld, AccessTools.Field(typeof(Tradeable), "pricePlayerBuy")),
+                new CodeMatch(OpCodes.Stfld, AccessTools.Field(typeof(Tradeable), "pricePlayerSell"))
+            };
+
+            matcher.MatchStartForward(targetSetSellToBuy);
+
+            if (EndlessGrowthMod.settings.unlimitedPrice)
+            {
+                // We'll remove the instructions so that sell price can be above buy price
+                matcher.RemoveInstructions(4);
+            }
 
             return matcher.InstructionEnumeration();
         }
