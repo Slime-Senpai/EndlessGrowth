@@ -4,6 +4,7 @@
   <author>Slime-Senpai</author>
   <packageId>SlimeSenpai.EndlessGrowth</packageId>
   <url>https://github.com/Slime-Senpai/EndlessGrowth</url>
+  <modIconPath IgnoreIfNoMatchingField="True">EndlessGrowth/Logo</modIconPath>
   <supportedVersions>
     <li>1.4</li>
     <li>1.5</li>
