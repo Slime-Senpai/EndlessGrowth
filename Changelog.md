@@ -1,3 +1,9 @@
+# 1.6.2.0
+
+## Features
+
+-  Updated for Rimworld 1.6
+
 # 1.5.2.0
 
 ## Features
